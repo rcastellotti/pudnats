@@ -2,11 +2,16 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
 	"strings"
+)
+
+const (
+	tokenPrefix    = "PUD"
+	tokenTotalLen  = 12
+	tokenSlugChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 )
 
 func runAdmin(args []string) error {
@@ -45,7 +50,7 @@ func runAdmin(args []string) error {
 		return err
 	}
 
-	token, err := generateToken(32)
+	token, err := generateToken()
 	if err != nil {
 		return err
 	}
@@ -63,10 +68,20 @@ func runAdmin(args []string) error {
 	return nil
 }
 
-func generateToken(size int) (string, error) {
-	buf := make([]byte, size)
-	if _, err := rand.Read(buf); err != nil {
+func generateToken() (string, error) {
+	suffixLen := tokenTotalLen - len(tokenPrefix)
+	if suffixLen <= 0 {
+		return "", errors.New("invalid token length configuration")
+	}
+
+	raw := make([]byte, suffixLen)
+	if _, err := rand.Read(raw); err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
+	out := make([]byte, 0, tokenTotalLen)
+	out = append(out, tokenPrefix...)
+	for _, b := range raw {
+		out = append(out, tokenSlugChars[int(b)%len(tokenSlugChars)])
+	}
+	return string(out), nil
 }

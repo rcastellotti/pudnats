@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PUD Dev Log</title>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #11161c;
+      --panel-2: #0f141a;
+      --line: #253242;
+      --text: #d6e2ef;
+      --muted: #8aa0b6;
+      --acc: #57b3ff;
+      --ok: #8df2bc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(900px 420px at 90% -20%, rgba(87,179,255,.2), transparent 60%),
+        radial-gradient(700px 300px at 10% -10%, rgba(141,242,188,.1), transparent 65%),
+        var(--bg);
+      font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, Monaco, monospace;
+      letter-spacing: 0.01em;
+    }
+    .wrap {
+      max-width: 920px;
+      margin: 24px auto;
+      padding: 16px;
+    }
+    .hero {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(87,179,255,.06), transparent 35%), var(--panel);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .hero pre {
+      margin: 0;
+      color: var(--acc);
+      font-size: 12px;
+      overflow-x: auto;
+    }
+    .status {
+      margin-top: 10px;
+      color: var(--ok);
+      min-height: 1.2em;
+      font-size: 13px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr auto;
+    }
+    input, textarea, button {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #0a0f14;
+      color: var(--text);
+      padding: 10px;
+      font: inherit;
+      border-radius: 0;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    button {
+      cursor: pointer;
+      background: #162536;
+      border-color: #2b4663;
+      color: #c9e7ff;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    button.secondary {
+      background: #141a21;
+      border-color: var(--line);
+      color: var(--muted);
+    }
+    .entry {
+      border-top: 1px dashed var(--line);
+      padding: 10px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .meta {
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+<pre>┌──────────────────────────────────────────────────────────┐
+│ PUD TEAM DEV LOG                                        │
+│ /local/storage/notes                                     │
+└──────────────────────────────────────────────────────────┘</pre>
+      <div class="status" id="status">Ready</div>
+    </div>
+
+    <div class="card">
+      <div class="title">Auth Token</div>
+      <div class="row">
+        <input id="token" placeholder="PUDXXXXXXXXX" />
+        <button class="secondary" id="saveToken">Save</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">Write Entry</div>
+      <textarea id="content" placeholder="what changed, what broke, what shipped"></textarea>
+      <div style="height:8px"></div>
+      <button id="postEntry">Post Entry</button>
+    </div>
+
+    <div class="card">
+      <div class="title">Query Entries</div>
+      <div class="row">
+        <input id="day" type="date" />
+        <button class="secondary" id="loadEntries">Load</button>
+      </div>
+      <div id="entries"></div>
+    </div>
+  </div>
+
+  <script>
+    const api = 'http://localhost:9173';
+    const tokenEl = document.getElementById('token');
+    const statusEl = document.getElementById('status');
+    const entriesEl = document.getElementById('entries');
+    const dayEl = document.getElementById('day');
+    dayEl.value = new Date().toISOString().slice(0, 10);
+
+    const saved = localStorage.getItem('devlog_token') || '';
+    tokenEl.value = saved;
+
+    function setStatus(v){ statusEl.textContent = v; }
+    function getToken(){ return (tokenEl.value || '').trim().toUpperCase(); }
+
+    function headers() {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getToken()
+      };
+    }
+
+    document.getElementById('saveToken').onclick = () => {
+      const tok = getToken();
+      localStorage.setItem('devlog_token', tok);
+      tokenEl.value = tok;
+      setStatus('Token saved in localStorage');
+    };
+
+    document.getElementById('postEntry').onclick = async () => {
+      try {
+        const content = document.getElementById('content').value.trim();
+        if (!content) { setStatus('Content is required'); return; }
+        const res = await fetch(api + '/api/entries', { method:'POST', headers: headers(), body: JSON.stringify({content}) });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || 'request failed');
+        document.getElementById('content').value = '';
+        setStatus('Entry posted');
+      } catch (e) {
+        setStatus('Post failed: ' + e.message);
+      }
+    };
+
+    document.getElementById('loadEntries').onclick = loadEntries;
+
+    async function loadEntries() {
+      try {
+        const day = dayEl.value;
+        const res = await fetch(api + '/api/entries?day=' + encodeURIComponent(day), { headers: headers() });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || 'request failed');
+        renderEntries(body.entries || []);
+        setStatus('Loaded ' + (body.entries || []).length + ' entries');
+      } catch (e) {
+        entriesEl.innerHTML = '';
+        setStatus('Load failed: ' + e.message);
+      }
+    }
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    }
+
+    function renderEntries(entries) {
+      if (!entries.length) {
+        entriesEl.innerHTML = '<div class="entry"><div class="meta">No entries</div></div>';
+        return;
+      }
+      entriesEl.innerHTML = entries.map(e => {
+        return '<div class="entry">'
+          + '<div class="meta">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</div>'
+          + '<div>' + esc(e.content) + '</div>'
+          + '</div>';
+      }).join('');
+    }
+  </script>
+</body>
+</html>
