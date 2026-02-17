@@ -1,0 +1,36 @@
+# Replace with your real domain or server IP.
+# Example:
+# devlog.example.com {
+#   import devlog_common
+# }
+
+:80 {
+	import devlog_common
+}
+
+(devlog_common) {
+	encode zstd gzip
+
+	# API traffic
+	handle /api/* {
+		reverse_proxy 127.0.0.1:9173 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Everything else goes to UI server
+	handle {
+		reverse_proxy 127.0.0.1:9172 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

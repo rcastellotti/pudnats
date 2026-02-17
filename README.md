@@ -61,13 +61,17 @@ go test ./...
 ## Run
 Start servers:
 ```bash
-./team-dev-log --db ./devlog.db --log ./devlog.log
+./team-dev-log --db ./devlog.db --log -
 ```
 
 You can also run explicitly with subcommand:
 ```bash
-./team-dev-log serve --db ./devlog.db --log ./devlog.log
+./team-dev-log serve --db ./devlog.db --log -
 ```
+
+Notes:
+- `--log -` (default) writes logs to stdout.
+- `--log /path/to/file.log` writes logs to stdout + file.
 
 ## Admin CLI
 Top-level help:
@@ -83,7 +87,7 @@ Admin help:
 
 Create user/token:
 ```bash
-./team-dev-log admin create-user --username alice --db ./devlog.db --log ./devlog.log
+./team-dev-log admin create-user --username alice --db ./devlog.db --log -
 ```
 
 Token format:
@@ -271,7 +275,9 @@ At local `17:00` (or first scheduler tick after 17:00):
 4. Run is recorded in `compactions` (once per day).
 
 ## Logging
-Each action is persisted in `action_logs` and also written to stdout + log file.
+Each action is persisted in `action_logs` and also emitted through the process logger.
+Recommended production mode is `--log -` so logs go to stdout/journald.
+Optional file logging remains available with `--log /path/to/file.log`.
 
 Logged actors/actions include:
 - API user actions (`create_entry`, `list_entries`, `whoami`)
@@ -285,55 +291,168 @@ Auto-created on startup:
 - `action_logs(id, actor_type, actor_username, action, metadata, created_at)`
 - `compactions(day, ran_at)`
 
-## systemd Deployment (VPS)
-Assume destination binary path `/opt/team-dev-log/devlog`.
+## Production Operations (Ubuntu)
+This section assumes Ubuntu 22.04/24.04 and root/sudo access.
 
-1. Create user + directory:
+### 1) Install runtime dependencies
+```bash
+sudo apt update
+sudo apt install -y caddy sqlite3 curl
+```
+
+### 2) Create service user and directories
 ```bash
 sudo useradd --system --home /opt/team-dev-log --shell /usr/sbin/nologin devlog || true
-sudo mkdir -p /opt/team-dev-log
-sudo chown -R devlog:devlog /opt/team-dev-log
+sudo mkdir -p /opt/team-dev-log /var/lib/team-dev-log
+sudo chown -R devlog:devlog /opt/team-dev-log /var/lib/team-dev-log
 ```
 
-2. Copy binary:
+### 3) Deploy binary
+Copy the binary built for target architecture:
 ```bash
-sudo cp ./devlog-linux-amd64 /opt/team-dev-log/devlog
+sudo install -m 0755 ./devlog-linux-amd64 /opt/team-dev-log/devlog
 sudo chown devlog:devlog /opt/team-dev-log/devlog
-sudo chmod 0755 /opt/team-dev-log/devlog
 ```
 
-3. Create `/etc/systemd/system/team-dev-log.service`:
+### 4) Configure systemd service
+Create `/etc/systemd/system/team-dev-log.service`:
 ```ini
 [Unit]
 Description=Team Dev Log
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=devlog
 Group=devlog
 WorkingDirectory=/opt/team-dev-log
-Environment=TZ=America/New_York
-ExecStart=/opt/team-dev-log/devlog --db /opt/team-dev-log/devlog.db --log /opt/team-dev-log/devlog.log
+Environment=TZ=UTC
+ExecStart=/opt/team-dev-log/devlog --db /var/lib/team-dev-log/devlog.db --log -
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/team-dev-log
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-4. Enable/start:
+Apply and start:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now team-dev-log
 sudo systemctl status team-dev-log
 ```
 
-5. Create first user on host:
+### 5) Create initial API user
 ```bash
-sudo -u devlog /opt/team-dev-log/devlog admin create-user --username alice --db /opt/team-dev-log/devlog.db --log /opt/team-dev-log/devlog.log
+sudo -u devlog /opt/team-dev-log/devlog admin create-user \
+  --username alice \
+  --db /var/lib/team-dev-log/devlog.db \
+  --log -
 ```
+
+### 6) Configure Caddy reverse proxy
+Use the repository `Caddyfile` as a base and set your domain.
+
+Example `/etc/caddy/Caddyfile`:
+```caddy
+devlog.example.com {
+	import devlog_common
+}
+
+(devlog_common) {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:9173
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:9172
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+```
+
+Validate and reload:
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+sudo systemctl status caddy
+```
+
+### 7) Firewall baseline
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status
+```
+
+### 8) Logging strategy in production
+- Run app with `--log -` so logs go to stdout.
+- Let `systemd-journald` retain and rotate logs.
+- Use `action_logs` table for product/audit event history.
+- Keep Caddy access logs separate from app logs.
+
+Useful commands:
+```bash
+# App logs (live)
+sudo journalctl -u team-dev-log -f
+
+# Last 200 app log lines
+sudo journalctl -u team-dev-log -n 200 --no-pager
+
+# Caddy logs
+sudo journalctl -u caddy -f
+```
+
+### 9) Backups (SQLite)
+Use SQLite online backup mode:
+```bash
+sudo -u devlog sqlite3 /var/lib/team-dev-log/devlog.db \
+  ".backup '/var/lib/team-dev-log/devlog-$(date +%F).db'"
+```
+Copy backups off-host (S3, rsync, etc.) on a schedule.
+
+### 10) Upgrades / rollback
+Upgrade:
+```bash
+sudo install -m 0755 ./devlog-linux-amd64 /opt/team-dev-log/devlog
+sudo systemctl restart team-dev-log
+sudo systemctl status team-dev-log
+```
+
+Rollback:
+```bash
+sudo install -m 0755 /opt/team-dev-log/devlog.previous /opt/team-dev-log/devlog
+sudo systemctl restart team-dev-log
+```
+
+### 11) Health checks and verification
+```bash
+curl -i http://127.0.0.1:9173/api/health
+curl -I https://devlog.example.com/
+curl -i https://devlog.example.com/api/health
+```
+
+### 12) Common troubleshooting
+- Service won’t start:
+  - `sudo journalctl -u team-dev-log -n 200 --no-pager`
+- Caddy config issues:
+  - `sudo caddy validate --config /etc/caddy/Caddyfile`
+- Database permission errors:
+  - Ensure `/var/lib/team-dev-log` is writable by `devlog`.
 
 ## Zig Cross-Compile (CGO SQLite)
 Because `go-sqlite3` uses CGO, use Zig as C toolchain.

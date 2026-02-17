@@ -25,7 +25,7 @@ import (
 
 const (
 	defaultDBPath  = "./devlog.db"
-	defaultLogPath = "./devlog.log"
+	defaultLogPath = "-"
 )
 
 type App struct {
@@ -80,7 +80,7 @@ func runServe(args []string) error {
 		fs.PrintDefaults()
 	}
 	dbPath := fs.String("db", defaultDBPath, "sqlite db path")
-	logPath := fs.String("log", defaultLogPath, "log file path")
+	logPath := fs.String("log", defaultLogPath, "log target path ('-' for stdout only)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -167,6 +167,10 @@ func binName() string {
 }
 
 func buildLogger(path string) (*log.Logger, func(), error) {
+	if path == "" || path == "-" {
+		return log.New(os.Stdout, "", log.LstdFlags|log.LUTC), func() {}, nil
+	}
+
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, nil, err
