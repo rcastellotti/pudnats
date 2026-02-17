@@ -89,21 +89,170 @@ Token format:
 The main UI stores token in browser `localStorage` under `devlog_token`.
 
 ## API
-Auth headers (either):
-- `Authorization: Bearer <token>`
-- `X-Auth-Token: <token>`
+Full curl-first API usage.
 
-Endpoints:
-- `GET /api/health` (no auth)
-- `GET /api/me` (auth)
-- `POST /api/entries` (auth)
-  - body: `{"content":"did X, fixed Y"}`
-- `GET /api/entries?day=YYYY-MM-DD&limit=200` (auth)
-
-Example:
+### Setup shell variables
 ```bash
-curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:9173/api/me
+export API="http://127.0.0.1:9173"
+export TOKEN="PUDXXXXXXXXX"
+export TODAY="$(date +%F)"
 ```
+
+### Auth header options
+Use either:
+
+```bash
+-H "Authorization: Bearer $TOKEN"
+```
+
+or:
+
+```bash
+-H "X-Auth-Token: $TOKEN"
+```
+
+### Health check
+```bash
+curl -i "$API/api/health"
+```
+Expected: `200` and `{"status":"ok"}`
+
+### Current authenticated user
+```bash
+curl -i \
+  -H "Authorization: Bearer $TOKEN" \
+  "$API/api/me"
+```
+Expected: `200` and:
+```json
+{"id":1,"username":"alice"}
+```
+
+Unauthorized example:
+```bash
+curl -i "$API/api/me"
+```
+Expected: `401` and `{"error":"unauthorized"}`
+
+### Create entry
+```bash
+curl -i -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"implemented API docs and tests"}' \
+  "$API/api/entries"
+```
+Expected: `201` and:
+```json
+{"id":123,"status":"created"}
+```
+
+Create entry using `X-Auth-Token`:
+```bash
+curl -i -X POST \
+  -H "X-Auth-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"using alternate auth header"}' \
+  "$API/api/entries"
+```
+
+Create entry error cases:
+
+Invalid JSON:
+```bash
+curl -i -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":' \
+  "$API/api/entries"
+```
+Expected: `400` `{"error":"invalid json"}`
+
+Missing content:
+```bash
+curl -i -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"   "}' \
+  "$API/api/entries"
+```
+Expected: `400` `{"error":"content is required"}`
+
+Compaction write lock window:
+```bash
+curl -i -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"may fail if compaction lock is active"}' \
+  "$API/api/entries"
+```
+Possible during lock: `423` `{"error":"writes are temporarily locked for daily compaction"}`
+
+### List entries (default day, default limit)
+```bash
+curl -i \
+  -H "Authorization: Bearer $TOKEN" \
+  "$API/api/entries"
+```
+
+### List entries for specific day and limit
+```bash
+curl -i \
+  -H "Authorization: Bearer $TOKEN" \
+  "$API/api/entries?day=$TODAY&limit=100"
+```
+
+Expected `200` body shape:
+```json
+{
+  "day":"2026-02-17",
+  "entries":[
+    {
+      "id":123,
+      "user":"alice",
+      "entry_type":"normal",
+      "content":"implemented API docs and tests",
+      "created_at":"2026-02-17T20:43:12Z"
+    }
+  ]
+}
+```
+
+List entries error cases:
+
+Invalid day format:
+```bash
+curl -i \
+  -H "Authorization: Bearer $TOKEN" \
+  "$API/api/entries?day=17-02-2026"
+```
+Expected: `400` `{"error":"day must be YYYY-MM-DD"}`
+
+No/invalid token:
+```bash
+curl -i "$API/api/entries"
+```
+Expected: `401` `{"error":"unauthorized"}`
+
+### CORS preflight
+```bash
+curl -i -X OPTIONS \
+  -H "Origin: http://localhost:9172" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Content-Type, Authorization" \
+  "$API/api/entries"
+```
+Expected:
+- `204 No Content`
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Headers: Content-Type, Authorization, X-Auth-Token`
+- `Access-Control-Allow-Methods: GET, POST, OPTIONS`
+
+### Endpoint summary
+- `GET /api/health` (no auth)
+- `GET /api/me` (auth required)
+- `POST /api/entries` (auth required)
+- `GET /api/entries?day=YYYY-MM-DD&limit=1..1000` (auth required)
 
 ## Daily 5 PM Compaction
 At local `17:00` (or first scheduler tick after 17:00):
