@@ -1,0 +1,14 @@
+# Build artifacts
+devlog
+team-dev-log
+*.exe
+*.out
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# OS/editor noise
+.DS_Store

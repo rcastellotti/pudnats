@@ -1,75 +1,43 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PUD Entries View</title>
+  <link rel="stylesheet" href="/assets/oat.min.css" />
+  <script defer src="/assets/oat.min.js"></script>
   <style>
     :root {
-      --bg: #0b0d10;
-      --panel: #0f141a;
-      --line: #253242;
-      --text: #d6e2ef;
-      --muted: #8aa0b6;
-      --acc: #57b3ff;
-      --ok: #8df2bc;
+      --primary: #57b3ff;
+      --ring: #57b3ff;
+      --background: #0b0d10;
+      --card: #11161c;
+      --muted: #161d26;
+      --border: #263344;
+      --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      --font-sans: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
     }
-    * { box-sizing: border-box; }
     body {
-      margin: 0;
-      color: var(--text);
       background:
-        radial-gradient(900px 420px at 90% -20%, rgba(87,179,255,.2), transparent 60%),
-        var(--bg);
-      font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, Monaco, monospace;
-      letter-spacing: 0.01em;
+        radial-gradient(880px 360px at 95% -10%, color-mix(in srgb, var(--primary), transparent 80%), transparent 65%),
+        var(--background);
     }
-    .wrap {
-      max-width: 920px;
-      margin: 24px auto;
-      padding: 16px;
-    }
-    .hero {
-      border: 1px solid var(--line);
-      background: #11161c;
-      padding: 14px;
-      margin-bottom: 12px;
-    }
-    .status {
-      margin-top: 8px;
-      color: var(--ok);
-      font-size: 13px;
-      min-height: 1.2em;
-    }
-    .card {
-      border: 1px solid var(--line);
-      background: var(--panel);
-      padding: 12px;
-    }
-    .meta {
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 6px;
-    }
-    .entry {
-      border-top: 1px dashed var(--line);
-      padding: 10px 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    a { color: var(--acc); }
+    main { max-width: 920px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
+    .status { min-height: 1.2em; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <div>[PUD ENTRIES VIEW]</div>
-      <div class="meta" id="dayMeta"></div>
-      <div class="status" id="status">Loading...</div>
-    </div>
-    <div class="card" id="entries"></div>
-    <div class="meta" style="margin-top:10px;">Open full UI at <a href="/">/</a></div>
-  </div>
+  <main class="vstack gap-4">
+    <header class="card p-4">
+      <h4>PUD ENTRIES VIEW</h4>
+      <p class="text-light" id="dayMeta"></p>
+      <p class="text-light status" id="status">Loading...</p>
+    </header>
+
+    <section id="entries" class="vstack gap-2"></section>
+
+    <p class="text-light">Open full UI at <a href="/">/</a></p>
+  </main>
 
   <script>
     const api = 'http://localhost:9173';
@@ -114,14 +82,14 @@
 
     function renderEntries(entries) {
       if (!entries.length) {
-        entriesEl.innerHTML = '<div class="entry"><div class="meta">No entries</div></div>';
+        entriesEl.innerHTML = '<article class="card p-4"><p class="text-light">No entries</p></article>';
         return;
       }
       entriesEl.innerHTML = entries.map(e => {
-        return '<div class="entry">'
-          + '<div class="meta">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</div>'
-          + '<div>' + esc(e.content) + '</div>'
-          + '</div>';
+        return '<article class="card p-4">'
+          + '<p class="text-light">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</p>'
+          + '<p>' + esc(e.content) + '</p>'
+          + '</article>';
       }).join('');
     }
 
@@ -131,7 +99,7 @@
 
       const token = getToken();
       if (!token) {
-        setStatus('No token found. Use /? then save token, or pass ?token=PUD...');
+        setStatus('No token found. Use / then save token, or pass ?token=PUD...');
         entriesEl.innerHTML = '';
         return;
       }

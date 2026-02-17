@@ -117,6 +117,8 @@ func runServe(args []string) error {
 	uiMux := http.NewServeMux()
 	uiMux.HandleFunc("/", app.handleUI)
 	uiMux.HandleFunc("/entries-view", app.handleEntriesViewUI)
+	uiMux.HandleFunc("/assets/oat.min.css", app.handleOatCSS)
+	uiMux.HandleFunc("/assets/oat.min.js", app.handleOatJS)
 
 	apiServer := &http.Server{Addr: ":9173", Handler: app.withCORS(apiMux)}
 	uiServer := &http.Server{Addr: ":9172", Handler: uiMux}
