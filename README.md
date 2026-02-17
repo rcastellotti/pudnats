@@ -18,8 +18,9 @@ Single-binary Go application for team development logs.
 - `api.go`: API handlers/auth/middleware
 - `admin.go`: admin CLI commands and token generation
 - `webui.go`: embedded UI assets and UI handlers
-- `webui.html`: main UI template
-- `entries_view.html`: query-only entries view template
+- `templates/base.html`: shared base layout template
+- `templates/index.html`: main UI template for `/`
+- `templates/entries-view.html`: query-only template for `/entries-view`
 - `oat.min.css`, `oat.min.js`: locally served Oat assets
 - `api_test.go`: API tests
 - `mise.toml`: tool + task config

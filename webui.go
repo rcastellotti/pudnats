@@ -1,15 +1,17 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
+	"html/template"
 	"net/http"
 )
 
-//go:embed webui.html
-var uiHTML string
+type uiPageData struct {
+	Title string
+}
 
-//go:embed entries_view.html
-var entriesViewHTML string
+//go:embed templates/*.html
+var uiTemplatesFS embed.FS
 
 //go:embed oat.min.css
 var oatCSS []byte
@@ -18,13 +20,11 @@ var oatCSS []byte
 var oatJS []byte
 
 func (a *App) handleUI(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(uiHTML))
+	renderUI(w, "templates/index.html", uiPageData{Title: "PUD Dev Log"})
 }
 
 func (a *App) handleEntriesViewUI(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(entriesViewHTML))
+	renderUI(w, "templates/entries-view.html", uiPageData{Title: "PUD Entries View"})
 }
 
 func (a *App) handleOatCSS(w http.ResponseWriter, _ *http.Request) {
@@ -37,4 +37,16 @@ func (a *App) handleOatJS(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(oatJS)
+}
+
+func renderUI(w http.ResponseWriter, pagePath string, data uiPageData) {
+	t, err := template.ParseFS(uiTemplatesFS, "templates/base.html", pagePath)
+	if err != nil {
+		http.Error(w, "failed to load template", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.ExecuteTemplate(w, "base", data); err != nil {
+		http.Error(w, "failed to render template", http.StatusInternalServerError)
+	}
 }

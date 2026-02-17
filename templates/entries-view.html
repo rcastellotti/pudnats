@@ -1,0 +1,93 @@
+{{define "content"}}
+<header class="card p-4">
+  <h4>PUD ENTRIES VIEW</h4>
+  <p class="text-light" id="dayMeta"></p>
+  <p class="text-light status" id="status">Loading...</p>
+</header>
+
+<section id="entries" class="vstack gap-2"></section>
+
+<p class="text-light">Open full UI at <a href="/">/</a></p>
+{{end}}
+
+{{define "scripts"}}
+<script>
+  const api = 'http://localhost:9173';
+  const statusEl = document.getElementById('status');
+  const dayMetaEl = document.getElementById('dayMeta');
+  const entriesEl = document.getElementById('entries');
+
+  function setStatus(v){ statusEl.textContent = v; }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+
+  function today() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function getParam(name) {
+    const p = new URLSearchParams(window.location.search);
+    return (p.get(name) || '').trim();
+  }
+
+  function getDay() {
+    const d = getParam('day');
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : today();
+  }
+
+  function getToken() {
+    const fromQuery = getParam('token').toUpperCase();
+    if (fromQuery) {
+      localStorage.setItem('devlog_token', fromQuery);
+      return fromQuery;
+    }
+    return (localStorage.getItem('devlog_token') || '').trim().toUpperCase();
+  }
+
+  function headers() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + getToken()
+    };
+  }
+
+  function renderEntries(entries) {
+    if (!entries.length) {
+      entriesEl.innerHTML = '<article class="card p-4"><p class="text-light">No entries</p></article>';
+      return;
+    }
+    entriesEl.innerHTML = entries.map(e => {
+      return '<article class="card p-4">'
+        + '<p class="text-light">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</p>'
+        + '<p>' + esc(e.content) + '</p>'
+        + '</article>';
+    }).join('');
+  }
+
+  async function loadEntries() {
+    const day = getDay();
+    dayMetaEl.textContent = 'day=' + day;
+
+    const token = getToken();
+    if (!token) {
+      setStatus('No token found. Use / then save token, or pass ?token=PUD...');
+      entriesEl.innerHTML = '';
+      return;
+    }
+
+    try {
+      const res = await fetch(api + '/api/entries?day=' + encodeURIComponent(day), { headers: headers() });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'request failed');
+      renderEntries(body.entries || []);
+      setStatus('Loaded ' + (body.entries || []).length + ' entries');
+    } catch (e) {
+      entriesEl.innerHTML = '';
+      setStatus('Load failed: ' + e.message);
+    }
+  }
+
+  loadEntries();
+</script>
+{{end}}
