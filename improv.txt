@@ -1,0 +1,62 @@
+Team Dev Log Improvement List
+
+1) Security and auth hardening
+- Add token expiration / rotation policies and revoke support (admin subcommands).
+- Add optional scoped tokens (read-only vs write).
+- Add request rate limiting per token and per IP.
+- Restrict CORS origin from '*' to configurable allowlist in production.
+- Add optional TLS/reverse-proxy-aware security headers.
+
+2) Configuration and environment ergonomics
+- Support env vars for all runtime settings (ports, DB path, log path, timezone, compaction hour).
+- Add explicit API/UI port flags instead of hardcoded :9173/:9172.
+- Add startup validation for config values with clear fatal messages.
+
+3) Data model and query performance
+- Add index on users(token_hash) explicitly for fast auth lookups.
+- Add index on entries(entry_type, created_at) to speed compaction/day queries.
+- Store created_at as INTEGER unix time or normalized UTC with DB-level constraints.
+- Consider dedicated table for compacted summaries (or compact source mapping) to preserve traceability.
+
+4) Compaction and scheduler reliability
+- Replace 30s polling with next-run scheduling and wake-at-target-time logic.
+- Make compaction timezone explicit/configurable and include it in logs.
+- Add startup catch-up behavior for missed compactions after downtime.
+- Add metrics around compaction duration, merged count, and lock duration.
+
+5) API quality and consistency
+- Version the API (/api/v1/...) for forward compatibility.
+- Add pagination/cursor support for entries listing.
+- Return structured error codes (code + message) instead of message-only errors.
+- Validate JSON body size at HTTP layer (MaxBytesReader) before decode.
+- Add request IDs in responses/logs for easier tracing.
+
+6) Logging and observability
+- Move from plain log lines to structured JSON logs.
+- Add log levels and configurable verbosity.
+- Expose Prometheus-style metrics endpoint (latency, status codes, auth failures, compactions).
+- Add optional tracing hooks for distributed diagnostics.
+
+7) UI and frontend maintainability
+- Split inline JS from templates into static files (embedded) per page.
+- Add CSP-compatible approach (nonce/hash) to avoid large inline script blocks.
+- Add lightweight client-side validation and clear auth state indicators.
+- Add empty/error/loading state components shared across pages.
+
+8) Testing expansion
+- Add tests for admin CLI (help output, create-user success/failure, token format invariants).
+- Add tests for compaction behavior (single run/day, merge correctness, delete correctness).
+- Add tests for CORS preflight headers and method handling.
+- Add integration tests that spin up both servers and hit real HTTP endpoints.
+
+9) Operational hardening
+- Add graceful shutdown tests and ensure compaction lock is released on panic paths.
+- Add backup/restore docs and tooling for SQLite snapshots.
+- Add migration strategy if schema evolves (version table + migrations).
+- Add health/readiness split endpoints for orchestration systems.
+
+10) Repo and release process
+- Add CI pipeline for build/lint/test on PRs.
+- Add release workflow for tagged cross-compiled binaries.
+- Add CHANGELOG and semantic versioning policy.
+- Add CONTRIBUTING.md and architecture notes.
