@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PUD Entries View</title>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #0f141a;
+      --line: #253242;
+      --text: #d6e2ef;
+      --muted: #8aa0b6;
+      --acc: #57b3ff;
+      --ok: #8df2bc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(900px 420px at 90% -20%, rgba(87,179,255,.2), transparent 60%),
+        var(--bg);
+      font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, Monaco, monospace;
+      letter-spacing: 0.01em;
+    }
+    .wrap {
+      max-width: 920px;
+      margin: 24px auto;
+      padding: 16px;
+    }
+    .hero {
+      border: 1px solid var(--line);
+      background: #11161c;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .status {
+      margin-top: 8px;
+      color: var(--ok);
+      font-size: 13px;
+      min-height: 1.2em;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .entry {
+      border-top: 1px dashed var(--line);
+      padding: 10px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    a { color: var(--acc); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div>[PUD ENTRIES VIEW]</div>
+      <div class="meta" id="dayMeta"></div>
+      <div class="status" id="status">Loading...</div>
+    </div>
+    <div class="card" id="entries"></div>
+    <div class="meta" style="margin-top:10px;">Open full UI at <a href="/">/</a></div>
+  </div>
+
+  <script>
+    const api = 'http://localhost:9173';
+    const statusEl = document.getElementById('status');
+    const dayMetaEl = document.getElementById('dayMeta');
+    const entriesEl = document.getElementById('entries');
+
+    function setStatus(v){ statusEl.textContent = v; }
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+    }
+
+    function today() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function getParam(name) {
+      const p = new URLSearchParams(window.location.search);
+      return (p.get(name) || '').trim();
+    }
+
+    function getDay() {
+      const d = getParam('day');
+      return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : today();
+    }
+
+    function getToken() {
+      const fromQuery = getParam('token').toUpperCase();
+      if (fromQuery) {
+        localStorage.setItem('devlog_token', fromQuery);
+        return fromQuery;
+      }
+      return (localStorage.getItem('devlog_token') || '').trim().toUpperCase();
+    }
+
+    function headers() {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getToken()
+      };
+    }
+
+    function renderEntries(entries) {
+      if (!entries.length) {
+        entriesEl.innerHTML = '<div class="entry"><div class="meta">No entries</div></div>';
+        return;
+      }
+      entriesEl.innerHTML = entries.map(e => {
+        return '<div class="entry">'
+          + '<div class="meta">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</div>'
+          + '<div>' + esc(e.content) + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    async function loadEntries() {
+      const day = getDay();
+      dayMetaEl.textContent = 'day=' + day;
+
+      const token = getToken();
+      if (!token) {
+        setStatus('No token found. Use /? then save token, or pass ?token=PUD...');
+        entriesEl.innerHTML = '';
+        return;
+      }
+
+      try {
+        const res = await fetch(api + '/api/entries?day=' + encodeURIComponent(day), { headers: headers() });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || 'request failed');
+        renderEntries(body.entries || []);
+        setStatus('Loaded ' + (body.entries || []).length + ' entries');
+      } catch (e) {
+        entriesEl.innerHTML = '';
+        setStatus('Load failed: ' + e.message);
+      }
+    }
+
+    loadEntries();
+  </script>
+</body>
+</html>

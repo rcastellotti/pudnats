@@ -31,6 +31,8 @@ go build -o devlog .
 
 4. Open UI:
 - `http://localhost:9172`
+- Query-only viewer (no submit form): `http://localhost:9172/entries-view`
+  - Optional params: `?day=YYYY-MM-DD&token=PUDXXXXXXXXX`
 
 Paste token from step 2 into UI, save it (stored in browser `localStorage`), then post/query entries.
 Generated tokens are `12` chars total in format `PUD` + 9 uppercase slug chars.
