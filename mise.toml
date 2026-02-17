@@ -1,0 +1,14 @@
+[tools]
+go = "latest"
+
+[tasks.build]
+description = "Build the dev log binary"
+run = "go build ."
+
+[tasks.lint]
+description = "Run static checks"
+run = "go vet ./..."
+
+[tasks.test]
+description = "Run test suite"
+run = "go test ./..."
