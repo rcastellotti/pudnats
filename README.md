@@ -481,6 +481,7 @@ go build -ldflags "-s -w" -o devlog-linux-arm64 .
 
 ## TODO
 - integrations with slack etcetera
+- polish the oat based ui, use the tabs component the way the oat docs does, to switch betweeb webui and api, with curl and sample response
 - add webhook support for external systems (GitHub, GitLab, Jira)
 - add role-based access control (admin/member/viewer)
 - add token rotation and token revoke commands in admin CLI
