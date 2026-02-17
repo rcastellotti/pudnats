@@ -2,6 +2,15 @@
 
 Single-binary Go application for team development logs.
 
+## Workflow Change
+This changes the order from a standup-first process.
+
+New flow:
+- During the day, each person posts short updates to the board.
+- Later, the team reviews the board entries together.
+
+This keeps updates lightweight in real time and makes review asynchronous-first.
+
 ## Features
 - API server on `:9173`
 - Web UI server on `:9172`
@@ -350,3 +359,15 @@ go build -ldflags "-s -w" -o devlog-linux-arm64 .
 - Token hashes are SHA-256.
 - Put API/UI behind HTTPS reverse proxy for internet exposure.
 - Restrict exposed ports with firewall/security-group rules.
+
+## TODO
+- integrations with slack etcetera
+- add webhook support for external systems (GitHub, GitLab, Jira)
+- add role-based access control (admin/member/viewer)
+- add token rotation and token revoke commands in admin CLI
+- add pagination + cursor-based listing for `/api/entries`
+- add search/filter endpoints (by user, keyword, entry type)
+- add export endpoints (JSON/CSV/Markdown daily summary)
+- add email and chat notifications for daily compaction summary
+- add OpenAPI spec + generated API client examples
+- add optional SSO/OIDC authentication mode
