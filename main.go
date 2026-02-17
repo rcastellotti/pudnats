@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,20 +56,35 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) >= 2 && os.Args[1] == "serve" {
-		return runServe(os.Args[2:])
-	}
-	if len(os.Args) >= 2 && os.Args[1] == "admin" {
-		return runAdmin(os.Args[2:])
+	if len(os.Args) >= 2 {
+		switch os.Args[1] {
+		case "serve":
+			return runServe(os.Args[2:])
+		case "admin":
+			return runAdmin(os.Args[2:])
+		case "help", "-h", "--help":
+			printRootUsage(os.Stdout)
+			return nil
+		}
 	}
 	return runServe(os.Args[1:])
 }
 
 func runServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: %s serve [options]\n\n", binName())
+		fmt.Fprintln(fs.Output(), "Runs API (:9173) and web UI (:9172).")
+		fmt.Fprintln(fs.Output())
+		fmt.Fprintln(fs.Output(), "Options:")
+		fs.PrintDefaults()
+	}
 	dbPath := fs.String("db", defaultDBPath, "sqlite db path")
 	logPath := fs.String("log", defaultLogPath, "log file path")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 
@@ -132,6 +148,20 @@ func runServe(args []string) error {
 	_ = apiServer.Shutdown(shutdownCtx)
 	_ = uiServer.Shutdown(shutdownCtx)
 	return nil
+}
+
+func printRootUsage(w io.Writer) {
+	fmt.Fprintf(w, "Usage: %s <command> [options]\n\n", binName())
+	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  serve        Run API and web UI servers (default if no command is provided)")
+	fmt.Fprintln(w, "  admin        Administrative commands (user/token management)")
+	fmt.Fprintln(w, "  help         Show this help")
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Try: %s admin --help\n", binName())
+}
+
+func binName() string {
+	return filepath.Base(os.Args[0])
 }
 
 func buildLogger(path string) (*log.Logger, func(), error) {

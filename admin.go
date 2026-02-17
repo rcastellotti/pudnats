@@ -16,17 +16,34 @@ const (
 
 func runAdmin(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: admin create-user --username <name> [--db path] [--log path]")
+		printAdminUsage()
+		return nil
+	}
+	if args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		printAdminUsage()
+		return nil
 	}
 	if args[0] != "create-user" {
+		printAdminUsage()
 		return fmt.Errorf("unknown admin command: %s", args[0])
 	}
 
 	fs := flag.NewFlagSet("admin create-user", flag.ContinueOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: %s admin create-user --username <name> [options]\n\n", binName())
+		fmt.Fprintln(fs.Output(), "Creates an API user and generates a token.")
+		fmt.Fprintln(fs.Output(), "Token format: PUD + 9 uppercase slug chars (12 chars total).")
+		fmt.Fprintln(fs.Output())
+		fmt.Fprintln(fs.Output(), "Options:")
+		fs.PrintDefaults()
+	}
 	username := fs.String("username", "", "username to create")
 	dbPath := fs.String("db", defaultDBPath, "sqlite db path")
 	logPath := fs.String("log", defaultLogPath, "log file path")
 	if err := fs.Parse(args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	if strings.TrimSpace(*username) == "" {
@@ -66,6 +83,14 @@ func runAdmin(args []string) error {
 	fmt.Printf("created user: %s\n", *username)
 	fmt.Printf("token (save now, cannot be retrieved later): %s\n", token)
 	return nil
+}
+
+func printAdminUsage() {
+	fmt.Printf("Usage: %s admin <subcommand> [options]\n\n", binName())
+	fmt.Println("Subcommands:")
+	fmt.Println("  create-user    Create a user and print a generated token once")
+	fmt.Println()
+	fmt.Printf("Try: %s admin create-user --help\n", binName())
 }
 
 func generateToken() (string, error) {
