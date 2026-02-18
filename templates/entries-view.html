@@ -1,6 +1,6 @@
 {{define "content"}}
-<header class="card p-4">
-  <h4>PUD ENTRIES VIEW</h4>
+<header class="card p-4 vstack gap-2">
+  <h4>Entries View</h4>
   <p class="text-light" id="dayMeta"></p>
   <p class="text-light status" id="status">Loading...</p>
 </header>
@@ -54,11 +54,11 @@
 
   function renderEntries(entries) {
     if (!entries.length) {
-      entriesEl.innerHTML = '<article class="card p-4"><p class="text-light">No entries</p></article>';
+      entriesEl.innerHTML = '<article class="card p-3"><p class="text-light">No entries</p></article>';
       return;
     }
     entriesEl.innerHTML = entries.map(e => {
-      return '<article class="card p-4">'
+      return '<article class="card p-3">'
         + '<p class="text-light">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</p>'
         + '<p>' + esc(e.content) + '</p>'
         + '</article>';

@@ -1,14 +1,11 @@
 {{define "content"}}
-<header class="card p-4">
-  <pre>┌──────────────────────────────────────────────────────────┐
-│ PUD TEAM DEV LOG                                        │
-│ /local/storage/notes                                     │
-└──────────────────────────────────────────────────────────┘</pre>
-  <p class="text-light mt-2 status" id="status">Ready</p>
+<header class="card p-4 vstack gap-2">
+  <h4>Team Dev Log</h4>
+  <p class="text-light status" id="status">Ready</p>
 </header>
 
-<section class="card p-4">
-  <h6>AUTH TOKEN</h6>
+<section class="card p-4 vstack gap-2">
+  <h6>Auth</h6>
   <label for="token">Token</label>
   <input id="token" placeholder="PUDXXXXXXXXX" />
   <menu class="buttons mt-2">
@@ -16,8 +13,8 @@
   </menu>
 </section>
 
-<section class="card p-4">
-  <h6>WRITE ENTRY</h6>
+<section class="card p-4 vstack gap-2">
+  <h6>Write Entry</h6>
   <label for="content">Content</label>
   <textarea id="content" placeholder="what changed, what broke, what shipped"></textarea>
   <menu class="buttons mt-2">
@@ -25,14 +22,15 @@
   </menu>
 </section>
 
-<section class="card p-4">
-  <h6>QUERY ENTRIES</h6>
+<section class="card p-4 vstack gap-2">
+  <h6>Entries</h6>
   <label for="day">Day</label>
   <div class="hstack">
     <input id="day" type="date" />
     <button id="loadEntries" data-variant="secondary" class="outline">Load</button>
   </div>
-  <div id="entries" class="mt-4"></div>
+  <div id="entries" class="vstack gap-2 mt-2"></div>
+  <p class="text-light">For a read-only screen use <a href="/entries-view">/entries-view</a>.</p>
 </section>
 {{end}}
 
@@ -104,11 +102,11 @@
 
   function renderEntries(entries) {
     if (!entries.length) {
-      entriesEl.innerHTML = '<article class="card p-4"><p class="text-light">No entries</p></article>';
+      entriesEl.innerHTML = '<article class="card p-3"><p class="text-light">No entries</p></article>';
       return;
     }
     entriesEl.innerHTML = entries.map(e => {
-      return '<article class="card p-4 mb-2">'
+      return '<article class="card p-3">'
         + '<p class="text-light">[' + esc(e.entry_type) + '] ' + esc(e.user) + ' @ ' + esc(e.created_at) + '</p>'
         + '<p>' + esc(e.content) + '</p>'
         + '</article>';
