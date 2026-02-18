@@ -83,16 +83,28 @@ Admin help:
 ```bash
 ./team-dev-log admin --help
 ./team-dev-log admin create-user --help
+./team-dev-log admin bootstrap-admin --help
 ```
 
-Create user/token:
+Bootstrap first admin (one-time, direct DB access):
 ```bash
-./team-dev-log admin create-user --username alice --db ./devlog.db --log -
+./team-dev-log admin bootstrap-admin --username alice --db ./devlog.db --log -
+```
+
+Create users through the API (admin token required):
+```bash
+./team-dev-log admin create-user \
+  --api http://127.0.0.1:9173 \
+  --token PUDXXXXXXXXX \
+  --username bob \
+  --role member \
+  --log -
 ```
 
 Token format:
 - `PUD` + 9 uppercase slug chars (12 chars total)
 - raw token is shown once; DB stores only SHA-256 hash
+- users are role-based: `member` or `admin`
 
 ## Web UI
 - Main UI: `http://localhost:9172/`
@@ -138,7 +150,7 @@ curl -i \
 ```
 Expected: `200` and:
 ```json
-{"id":1,"username":"alice"}
+{"id":1,"username":"alice","role":"admin"}
 ```
 
 Unauthorized example:
@@ -266,6 +278,27 @@ Expected:
 - `GET /api/me` (auth required)
 - `POST /api/entries` (auth required)
 - `GET /api/entries?day=YYYY-MM-DD&limit=1..1000` (auth required)
+- `POST /api/admin/users` (admin role required)
+
+### Admin API: create user
+```bash
+curl -i -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"charlie","role":"member"}' \
+  "$API/api/admin/users"
+```
+
+Success:
+- `201 Created`
+- returns generated token once:
+```json
+{"id":2,"username":"charlie","role":"member","token":"PUDXXXXXXXXX","status":"created"}
+```
+
+Permission failure:
+- `403 Forbidden`
+- `{"error":"admin role required"}`
 
 ## Daily 5 PM Compaction
 At local `17:00` (or first scheduler tick after 17:00):
@@ -281,12 +314,14 @@ Optional file logging remains available with `--log /path/to/file.log`.
 
 Logged actors/actions include:
 - API user actions (`create_entry`, `list_entries`, `whoami`)
-- Admin CLI actions (`create_user`)
+- admin user management actions (`create_user`)
+- admin CLI actions (`bootstrap_admin`, `create_user_via_api`)
 - System compaction events
 
 ## Database Schema
 Auto-created on startup:
 - `users(id, username, token_hash, created_at)`
+- `users(id, username, token_hash, role, created_at)`
 - `entries(id, user_id, entry_type, content, created_at)`
 - `action_logs(id, actor_type, actor_username, action, metadata, created_at)`
 - `compactions(day, ran_at)`
@@ -348,15 +383,25 @@ sudo systemctl enable --now team-dev-log
 sudo systemctl status team-dev-log
 ```
 
-### 5) Create initial API user
+### 5) Bootstrap initial admin
 ```bash
-sudo -u devlog /opt/team-dev-log/devlog admin create-user \
+sudo -u devlog /opt/team-dev-log/devlog admin bootstrap-admin \
   --username alice \
   --db /var/lib/team-dev-log/devlog.db \
   --log -
 ```
 
-### 6) Configure Caddy reverse proxy
+### 6) Create additional users via admin API auth
+```bash
+sudo -u devlog /opt/team-dev-log/devlog admin create-user \
+  --api http://127.0.0.1:9173 \
+  --token PUDXXXXXXXXX \
+  --username alice \
+  --role member \
+  --log -
+```
+
+### 7) Configure Caddy reverse proxy
 Use the repository `Caddyfile` as a base and set your domain.
 
 Example `/etc/caddy/Caddyfile`:
@@ -390,7 +435,7 @@ sudo systemctl reload caddy
 sudo systemctl status caddy
 ```
 
-### 7) Firewall baseline
+### 8) Firewall baseline
 ```bash
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
@@ -399,7 +444,7 @@ sudo ufw enable
 sudo ufw status
 ```
 
-### 8) Logging strategy in production
+### 9) Logging strategy in production
 - Run app with `--log -` so logs go to stdout.
 - Let `systemd-journald` retain and rotate logs.
 - Use `action_logs` table for product/audit event history.
@@ -417,7 +462,7 @@ sudo journalctl -u team-dev-log -n 200 --no-pager
 sudo journalctl -u caddy -f
 ```
 
-### 9) Backups (SQLite)
+### 10) Backups (SQLite)
 Use SQLite online backup mode:
 ```bash
 sudo -u devlog sqlite3 /var/lib/team-dev-log/devlog.db \
@@ -425,7 +470,7 @@ sudo -u devlog sqlite3 /var/lib/team-dev-log/devlog.db \
 ```
 Copy backups off-host (S3, rsync, etc.) on a schedule.
 
-### 10) Upgrades / rollback
+### 11) Upgrades / rollback
 Upgrade:
 ```bash
 sudo install -m 0755 ./devlog-linux-amd64 /opt/team-dev-log/devlog
@@ -439,14 +484,14 @@ sudo install -m 0755 /opt/team-dev-log/devlog.previous /opt/team-dev-log/devlog
 sudo systemctl restart team-dev-log
 ```
 
-### 11) Health checks and verification
+### 12) Health checks and verification
 ```bash
 curl -i http://127.0.0.1:9173/api/health
 curl -I https://devlog.example.com/
 curl -i https://devlog.example.com/api/health
 ```
 
-### 12) Common troubleshooting
+### 13) Common troubleshooting
 - Service won’t start:
   - `sudo journalctl -u team-dev-log -n 200 --no-pager`
 - Caddy config issues:

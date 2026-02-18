@@ -34,6 +34,16 @@ func (a *App) withAuth(next func(http.ResponseWriter, *http.Request, AuthedUser)
 	}
 }
 
+func (a *App) withAdmin(next func(http.ResponseWriter, *http.Request, AuthedUser)) func(http.ResponseWriter, *http.Request, AuthedUser) {
+	return func(w http.ResponseWriter, r *http.Request, u AuthedUser) {
+		if normalizeRole(u.Role) != "admin" {
+			jsonErr(w, http.StatusForbidden, "admin role required")
+			return
+		}
+		next(w, r, u)
+	}
+}
+
 func (a *App) authUser(r *http.Request) (AuthedUser, error) {
 	tok := strings.TrimSpace(r.Header.Get("X-Auth-Token"))
 	if tok == "" {
@@ -47,7 +57,7 @@ func (a *App) authUser(r *http.Request) (AuthedUser, error) {
 	}
 	hash := hashToken(tok)
 	var u AuthedUser
-	err := a.db.QueryRow(`SELECT id, username FROM users WHERE token_hash = ?`, hash).Scan(&u.ID, &u.Username)
+	err := a.db.QueryRow(`SELECT id, username, role FROM users WHERE token_hash = ?`, hash).Scan(&u.ID, &u.Username, &u.Role)
 	if err != nil {
 		return AuthedUser{}, err
 	}
@@ -72,6 +82,50 @@ func (a *App) handleEntries(w http.ResponseWriter, r *http.Request, u AuthedUser
 	default:
 		jsonErr(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (a *App) handleAdminUsers(w http.ResponseWriter, r *http.Request, u AuthedUser) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	var req struct {
+		Username string `json:"username"`
+		Role     string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonErr(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	req.Username = strings.TrimSpace(req.Username)
+	req.Role = normalizeRole(req.Role)
+	if req.Username == "" {
+		jsonErr(w, http.StatusBadRequest, "username is required")
+		return
+	}
+	if !validRole(req.Role) {
+		jsonErr(w, http.StatusBadRequest, "invalid role")
+		return
+	}
+
+	uid, token, err := a.createUserWithRole(req.Username, req.Role)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.username") {
+			jsonErr(w, http.StatusConflict, "username already exists")
+			return
+		}
+		jsonErr(w, http.StatusInternalServerError, "failed to create user")
+		return
+	}
+	_ = a.logAction("api_admin", u.Username, "create_user", fmt.Sprintf("target_username=%s role=%s user_id=%d", req.Username, req.Role, uid))
+	jsonOut(w, http.StatusCreated, map[string]any{
+		"id":       uid,
+		"username": req.Username,
+		"role":     req.Role,
+		"token":    token,
+		"status":   "created",
+	})
 }
 
 func (a *App) handleCreateEntry(w http.ResponseWriter, r *http.Request, u AuthedUser) {
