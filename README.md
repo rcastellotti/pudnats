@@ -1,6 +1,9 @@
 # Team Dev Log (Go + SQLite, no ORM)
 
 Single-binary Go application for team development logs.
+> [!WARNING]
+> This project is **vibecoded** and currently requires a significant refactor.
+> Do **not** use it for production or security-sensitive workloads.
 
 ## Workflow Change
 This changes the order from a standup-first process.
