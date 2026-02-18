@@ -22,7 +22,7 @@ variable "hcloud_token" {
 variable "server_name" {
   description = "Name for the IPv6 machine"
   type        = string
-  default     = "team-dev-log-ipv6"
+  default     = "pudnats-ipv6"
 }
 
 variable "server_type" {

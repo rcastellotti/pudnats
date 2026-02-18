@@ -1,7 +1,7 @@
 {{define "content"}}
 <header class="card p-4">
   <pre>┌──────────────────────────────────────────────────────────┐
-│ PUD TEAM DEV LOG                                        │
+│ PUDNATS                                                 │
 │ /local/storage/notes                                     │
 └──────────────────────────────────────────────────────────┘</pre>
   <p class="text-light mt-2 status" id="status">Ready</p>
@@ -45,7 +45,7 @@
   const dayEl = document.getElementById('day');
   dayEl.value = new Date().toISOString().slice(0, 10);
 
-  const saved = localStorage.getItem('devlog_token') || '';
+  const saved = localStorage.getItem('pudnats_token') || '';
   tokenEl.value = saved;
 
   function setStatus(v){ statusEl.textContent = v; }
@@ -60,7 +60,7 @@
 
   document.getElementById('saveToken').onclick = () => {
     const tok = getToken();
-    localStorage.setItem('devlog_token', tok);
+    localStorage.setItem('pudnats_token', tok);
     tokenEl.value = tok;
     setStatus('Token saved in localStorage');
     if (window.ot && window.ot.toast) window.ot.toast('Token saved', 'Auth', { variant: 'success' });

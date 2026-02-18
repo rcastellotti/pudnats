@@ -20,11 +20,11 @@ var oatCSS []byte
 var oatJS []byte
 
 func (a *App) handleUI(w http.ResponseWriter, _ *http.Request) {
-	renderUI(w, "templates/index.html", uiPageData{Title: "PUD Dev Log"})
+	renderUI(w, "templates/index.html", uiPageData{Title: "Pudnats"})
 }
 
 func (a *App) handleEntriesViewUI(w http.ResponseWriter, _ *http.Request) {
-	renderUI(w, "templates/entries-view.html", uiPageData{Title: "PUD Entries View"})
+	renderUI(w, "templates/entries-view.html", uiPageData{Title: "Pudnats Entries"})
 }
 
 func (a *App) handleOatCSS(w http.ResponseWriter, _ *http.Request) {
