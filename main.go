@@ -38,6 +38,7 @@ type App struct {
 type AuthedUser struct {
 	ID       int64  `json:"id"`
 	Username string `json:"username"`
+	Role     string `json:"role"`
 }
 
 type entryRow struct {
@@ -113,6 +114,7 @@ func runServe(args []string) error {
 	apiMux.HandleFunc("/api/health", app.handleHealth)
 	apiMux.HandleFunc("/api/me", app.withAuth(app.handleMe))
 	apiMux.HandleFunc("/api/entries", app.withAuth(app.handleEntries))
+	apiMux.HandleFunc("/api/admin/users", app.withAuth(app.withAdmin(app.handleAdminUsers)))
 
 	uiMux := http.NewServeMux()
 	uiMux.HandleFunc("/", app.handleUI)
@@ -200,6 +202,7 @@ CREATE TABLE IF NOT EXISTS users (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	username TEXT NOT NULL UNIQUE,
 	token_hash TEXT NOT NULL UNIQUE,
+	role TEXT NOT NULL DEFAULT 'member',
 	created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS entries (
@@ -224,8 +227,50 @@ CREATE TABLE IF NOT EXISTS compactions (
 	ran_at TEXT NOT NULL
 );
 `
-	_, err := a.db.Exec(schema)
+	if _, err := a.db.Exec(schema); err != nil {
+		return err
+	}
+	return a.ensureUsersRoleColumn()
+}
+
+func (a *App) ensureUsersRoleColumn() error {
+	hasRole, err := a.usersRoleColumnExists()
+	if err != nil {
+		return err
+	}
+	if !hasRole {
+		if _, err := a.db.Exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`); err != nil {
+			return err
+		}
+	}
+	_, err = a.db.Exec(`UPDATE users SET role='member' WHERE role IS NULL OR role=''`)
 	return err
+}
+
+func (a *App) usersRoleColumnExists() (bool, error) {
+	rows, err := a.db.Query(`PRAGMA table_info(users)`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notNull int
+		var dflt sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notNull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == "role" {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func (a *App) compactionLoop(ctx context.Context) {
@@ -390,4 +435,40 @@ func hashToken(token string) string {
 
 func nowUTC() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func normalizeRole(role string) string {
+	role = strings.ToLower(strings.TrimSpace(role))
+	if role == "" {
+		return "member"
+	}
+	return role
+}
+
+func validRole(role string) bool {
+	return role == "member" || role == "admin"
+}
+
+func (a *App) createUserWithRole(username, role string) (int64, string, error) {
+	username = strings.TrimSpace(username)
+	role = normalizeRole(role)
+	if username == "" {
+		return 0, "", errors.New("username is required")
+	}
+	if !validRole(role) {
+		return 0, "", errors.New("invalid role")
+	}
+
+	token, err := generateToken()
+	if err != nil {
+		return 0, "", err
+	}
+	hash := hashToken(token)
+
+	res, err := a.db.Exec(`INSERT INTO users(username, token_hash, role, created_at) VALUES(?, ?, ?, ?)`, username, hash, role, nowUTC())
+	if err != nil {
+		return 0, "", err
+	}
+	uid, _ := res.LastInsertId()
+	return uid, token, nil
 }

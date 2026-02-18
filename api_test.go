@@ -36,19 +36,25 @@ func newTestMux(app *App) http.Handler {
 	mux.HandleFunc("/api/health", app.handleHealth)
 	mux.HandleFunc("/api/me", app.withAuth(app.handleMe))
 	mux.HandleFunc("/api/entries", app.withAuth(app.handleEntries))
+	mux.HandleFunc("/api/admin/users", app.withAuth(app.withAdmin(app.handleAdminUsers)))
 	return app.withCORS(mux)
 }
 
 func createUser(t *testing.T, app *App, username, token string) {
+	createUserWithRole(t, app, username, token, "member")
+}
+
+func createUserWithRole(t *testing.T, app *App, username, token, role string) {
 	t.Helper()
 	_, err := app.db.Exec(
-		`INSERT INTO users(username, token_hash, created_at) VALUES(?, ?, ?)`,
+		`INSERT INTO users(username, token_hash, role, created_at) VALUES(?, ?, ?, ?)`,
 		username,
 		hashToken(token),
+		role,
 		nowUTC(),
 	)
 	if err != nil {
-		t.Fatalf("createUser: %v", err)
+		t.Fatalf("createUserWithRole: %v", err)
 	}
 }
 
@@ -191,3 +197,52 @@ func TestAPIListEntriesInvalidDay(t *testing.T) {
 	}
 }
 
+func TestAPIAdminCreateUserForbiddenForMember(t *testing.T) {
+	app := newTestApp(t)
+	h := newTestMux(app)
+	memberToken := "PUDMEMBER01"
+	createUserWithRole(t, app, "member1", memberToken, "member")
+
+	req := authedReq(t, http.MethodPost, "/api/admin/users", map[string]string{
+		"username": "new-user",
+		"role":     "member",
+	}, memberToken)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAPIAdminCreateUserByAdmin(t *testing.T) {
+	app := newTestApp(t)
+	h := newTestMux(app)
+	adminToken := "PUDADMIN001"
+	createUserWithRole(t, app, "admin1", adminToken, "admin")
+
+	req := authedReq(t, http.MethodPost, "/api/admin/users", map[string]string{
+		"username": "new-user",
+		"role":     "member",
+	}, adminToken)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if got["username"] != "new-user" {
+		t.Fatalf("expected username new-user, got %#v", got["username"])
+	}
+	if got["role"] != "member" {
+		t.Fatalf("expected role member, got %#v", got["role"])
+	}
+	if got["token"] == "" {
+		t.Fatal("expected token in response")
+	}
+}
