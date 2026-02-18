@@ -20,18 +20,22 @@ This keeps updates lightweight in real time and makes review asynchronous-first.
 - Admin CLI for user creation + token generation
 - Daily compaction at 5:00 PM local time with temporary write lock
 - Action logging to SQLite and stdout/file
+- Extensible integration dispatcher for external notifications
+- Slack webhook integration for daily compaction notifications
 - Oat-based UI (`oat.min.css` / `oat.min.js`) served locally from the binary
 
 ## Project Layout
 - `main.go`: process startup, server wiring, DB schema, compaction loop
 - `api.go`: API handlers/auth/middleware
 - `admin.go`: admin CLI commands and token generation
+- `integrations.go`: pluggable integration framework + Slack integration
 - `webui.go`: embedded UI assets and UI handlers
 - `templates/base.html`: shared base layout template
 - `templates/index.html`: main UI template for `/`
 - `templates/entries-view.html`: query-only template for `/entries-view`
 - `oat.min.css`, `oat.min.js`: locally served Oat assets
 - `api_test.go`: API tests
+- `integrations_test.go`: integration dispatcher + Slack integration tests
 - `mise.toml`: tool + task config
 
 ## Requirements
@@ -72,6 +76,8 @@ You can also run explicitly with subcommand:
 Notes:
 - `--log -` (default) writes logs to stdout.
 - `--log /path/to/file.log` writes logs to stdout + file.
+- `--slack-webhook-url` enables Slack notifications for daily compaction.
+- Environment variable alternative: `PUDNATS_SLACK_WEBHOOK_URL`.
 
 ## Admin CLI
 Top-level help:
@@ -273,6 +279,30 @@ At local `17:00` (or first scheduler tick after 17:00):
 2. Day's `normal` entries are merged into one `daily_compact` entry.
 3. Original day `normal` entries are deleted.
 4. Run is recorded in `compactions` (once per day).
+5. A `daily_compact` integration event is emitted to configured integrations (for example Slack).
+
+## Integrations
+Pudnats includes an extensible integration dispatcher.
+
+Current integration:
+- Slack incoming webhook
+
+How it works:
+- Integrations implement a `Notify(context.Context, IntegrationEvent) error` interface.
+- The app dispatches integration events after successful internal operations.
+- Integration failures are logged and do not fail compaction/database writes.
+
+Current emitted event:
+- `daily_compact` (after compaction transaction commits)
+
+Slack setup example:
+```bash
+./team-dev-log serve --db ./devlog.db --log - --slack-webhook-url "https://hooks.slack.com/services/..."
+```
+or:
+```bash
+PUDNATS_SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." ./team-dev-log serve --db ./devlog.db --log -
+```
 
 ## Logging
 Each action is persisted in `action_logs` and also emitted through the process logger.

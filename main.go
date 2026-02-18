@@ -29,10 +29,11 @@ const (
 )
 
 type App struct {
-	db          *sql.DB
-	logger      *log.Logger
-	writeLocked atomic.Bool
-	compactMu   sync.Mutex
+	db           *sql.DB
+	logger       *log.Logger
+	integrations *IntegrationDispatcher
+	writeLocked  atomic.Bool
+	compactMu    sync.Mutex
 }
 
 type AuthedUser struct {
@@ -81,6 +82,7 @@ func runServe(args []string) error {
 	}
 	dbPath := fs.String("db", defaultDBPath, "sqlite db path")
 	logPath := fs.String("log", defaultLogPath, "log target path ('-' for stdout only)")
+	slackWebhook := fs.String("slack-webhook-url", strings.TrimSpace(os.Getenv("PUDNATS_SLACK_WEBHOOK_URL")), "slack incoming webhook url for integration notifications")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -100,7 +102,12 @@ func runServe(args []string) error {
 	}
 	defer db.Close()
 
-	app := &App{db: db, logger: logger}
+	dispatcher := NewIntegrationDispatcher(logger)
+	if strings.TrimSpace(*slackWebhook) != "" {
+		dispatcher.Add(NewSlackIntegration(*slackWebhook))
+	}
+
+	app := &App{db: db, logger: logger, integrations: dispatcher}
 	if err := app.initSchema(); err != nil {
 		return err
 	}
@@ -358,6 +365,7 @@ ORDER BY e.created_at ASC, e.id ASC`, day)
 		return err
 	}
 	a.logger.Printf("event=daily_compact day=%s merged=%d", day, len(entries))
+	a.notifyDailyCompact(day, len(entries))
 	return nil
 }
 
@@ -390,4 +398,24 @@ func hashToken(token string) string {
 
 func nowUTC() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func (a *App) notifyDailyCompact(day string, merged int) {
+	if a.integrations == nil || !a.integrations.HasIntegrations() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	evt := IntegrationEvent{
+		Type:       integrationEventDailyCompact,
+		Message:    fmt.Sprintf(":droplet: Pudnats daily compact complete for %s (merged %d entries)", day, merged),
+		OccurredAt: time.Now().UTC(),
+		Fields: map[string]any{
+			"day":    day,
+			"merged": merged,
+		},
+	}
+	a.integrations.Notify(ctx, evt)
 }
