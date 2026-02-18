@@ -1,14 +1,14 @@
 # Replace with your real domain or server IP.
 # Example:
-# devlog.example.com {
-#   import devlog_common
+# pudnats.example.com {
+#   import pudnats_common
 # }
 
 :80 {
-	import devlog_common
+	import pudnats_common
 }
 
-(devlog_common) {
+(pudnats_common) {
 	encode zstd gzip
 
 	# API traffic

@@ -1,4 +1,4 @@
-# Team Dev Log (Go + SQLite, no ORM)
+# Pudnats (Go + SQLite, no ORM)
 
 Single-binary Go application for team development logs.
 
@@ -61,33 +61,43 @@ go test ./...
 ## Run
 Start servers:
 ```bash
-./team-dev-log --db ./devlog.db --log -
+./pudnats --db ./pudnats.db --log -
 ```
 
 You can also run explicitly with subcommand:
 ```bash
-./team-dev-log serve --db ./devlog.db --log -
+./pudnats serve --db ./pudnats.db --log -
 ```
 
 Notes:
 - `--log -` (default) writes logs to stdout.
 - `--log /path/to/file.log` writes logs to stdout + file.
+- `--api-addr` sets API bind address (default `:9173`).
+- `--ui-addr` sets UI bind address (default `:9172`).
+- `--cors-origin` sets CORS allow origin for API responses (default `*`).
+
+Environment variable defaults:
+- `PUDNATS_DB_PATH`
+- `PUDNATS_LOG`
+- `PUDNATS_API_ADDR`
+- `PUDNATS_UI_ADDR`
+- `PUDNATS_CORS_ORIGIN`
 
 ## Admin CLI
 Top-level help:
 ```bash
-./team-dev-log help
+./pudnats help
 ```
 
 Admin help:
 ```bash
-./team-dev-log admin --help
-./team-dev-log admin create-user --help
+./pudnats admin --help
+./pudnats admin create-user --help
 ```
 
 Create user/token:
 ```bash
-./team-dev-log admin create-user --username alice --db ./devlog.db --log -
+./pudnats admin create-user --username alice --db ./pudnats.db --log -
 ```
 
 Token format:
@@ -99,7 +109,7 @@ Token format:
 - Query-only view: `http://localhost:9172/entries-view`
   - Optional query params: `day=YYYY-MM-DD`, `token=PUDXXXXXXXXX`
 
-The main UI stores token in browser `localStorage` under `devlog_token`.
+The main UI stores token in browser `localStorage` under `pudnats_token`.
 
 ## API
 Full curl-first API usage.
@@ -302,57 +312,62 @@ sudo apt install -y caddy sqlite3 curl
 
 ### 2) Create service user and directories
 ```bash
-sudo useradd --system --home /opt/team-dev-log --shell /usr/sbin/nologin devlog || true
-sudo mkdir -p /opt/team-dev-log /var/lib/team-dev-log
-sudo chown -R devlog:devlog /opt/team-dev-log /var/lib/team-dev-log
+sudo useradd --system --home /opt/pudnats --shell /usr/sbin/nologin pudnats || true
+sudo mkdir -p /opt/pudnats /var/lib/pudnats
+sudo chown -R pudnats:pudnats /opt/pudnats /var/lib/pudnats
 ```
 
 ### 3) Deploy binary
 Copy the binary built for target architecture:
 ```bash
-sudo install -m 0755 ./devlog-linux-amd64 /opt/team-dev-log/devlog
-sudo chown devlog:devlog /opt/team-dev-log/devlog
+sudo install -m 0755 ./pudnats-linux-amd64 /opt/pudnats/pudnats
+sudo chown pudnats:pudnats /opt/pudnats/pudnats
 ```
 
 ### 4) Configure systemd service
-Create `/etc/systemd/system/team-dev-log.service`:
+Create `/etc/systemd/system/pudnats.service`:
 ```ini
 [Unit]
-Description=Team Dev Log
+Description=Pudnats
 After=network.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=devlog
-Group=devlog
-WorkingDirectory=/opt/team-dev-log
+User=pudnats
+Group=pudnats
+WorkingDirectory=/opt/pudnats
 Environment=TZ=UTC
-ExecStart=/opt/team-dev-log/devlog --db /var/lib/team-dev-log/devlog.db --log -
+ExecStart=/opt/pudnats/pudnats --db /var/lib/pudnats/pudnats.db --log -
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/var/lib/team-dev-log
+ReadWritePaths=/var/lib/pudnats
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+Suggested tighter production `ExecStart`:
+```ini
+ExecStart=/opt/pudnats/pudnats --db /var/lib/pudnats/pudnats.db --log - --api-addr 127.0.0.1:9173 --ui-addr 127.0.0.1:9172 --cors-origin https://pudnats.example.com
+```
+
 Apply and start:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now team-dev-log
-sudo systemctl status team-dev-log
+sudo systemctl enable --now pudnats
+sudo systemctl status pudnats
 ```
 
 ### 5) Create initial API user
 ```bash
-sudo -u devlog /opt/team-dev-log/devlog admin create-user \
+sudo -u pudnats /opt/pudnats/pudnats admin create-user \
   --username alice \
-  --db /var/lib/team-dev-log/devlog.db \
+  --db /var/lib/pudnats/pudnats.db \
   --log -
 ```
 
@@ -361,11 +376,11 @@ Use the repository `Caddyfile` as a base and set your domain.
 
 Example `/etc/caddy/Caddyfile`:
 ```caddy
-devlog.example.com {
-	import devlog_common
+pudnats.example.com {
+	import pudnats_common
 }
 
-(devlog_common) {
+(pudnats_common) {
 	encode zstd gzip
 
 	handle /api/* {
@@ -382,6 +397,11 @@ devlog.example.com {
 	}
 }
 ```
+
+Recommended app networking settings behind Caddy:
+- API bind: `127.0.0.1:9173`
+- UI bind: `127.0.0.1:9172`
+- CORS origin: your public domain (for example `https://pudnats.example.com`)
 
 Validate and reload:
 ```bash
@@ -408,10 +428,10 @@ sudo ufw status
 Useful commands:
 ```bash
 # App logs (live)
-sudo journalctl -u team-dev-log -f
+sudo journalctl -u pudnats -f
 
 # Last 200 app log lines
-sudo journalctl -u team-dev-log -n 200 --no-pager
+sudo journalctl -u pudnats -n 200 --no-pager
 
 # Caddy logs
 sudo journalctl -u caddy -f
@@ -420,39 +440,39 @@ sudo journalctl -u caddy -f
 ### 9) Backups (SQLite)
 Use SQLite online backup mode:
 ```bash
-sudo -u devlog sqlite3 /var/lib/team-dev-log/devlog.db \
-  ".backup '/var/lib/team-dev-log/devlog-$(date +%F).db'"
+sudo -u pudnats sqlite3 /var/lib/pudnats/pudnats.db \
+  ".backup '/var/lib/pudnats/pudnats-$(date +%F).db'"
 ```
 Copy backups off-host (S3, rsync, etc.) on a schedule.
 
 ### 10) Upgrades / rollback
 Upgrade:
 ```bash
-sudo install -m 0755 ./devlog-linux-amd64 /opt/team-dev-log/devlog
-sudo systemctl restart team-dev-log
-sudo systemctl status team-dev-log
+sudo install -m 0755 ./pudnats-linux-amd64 /opt/pudnats/pudnats
+sudo systemctl restart pudnats
+sudo systemctl status pudnats
 ```
 
 Rollback:
 ```bash
-sudo install -m 0755 /opt/team-dev-log/devlog.previous /opt/team-dev-log/devlog
-sudo systemctl restart team-dev-log
+sudo install -m 0755 /opt/pudnats/pudnats.previous /opt/pudnats/pudnats
+sudo systemctl restart pudnats
 ```
 
 ### 11) Health checks and verification
 ```bash
 curl -i http://127.0.0.1:9173/api/health
-curl -I https://devlog.example.com/
-curl -i https://devlog.example.com/api/health
+curl -I https://pudnats.example.com/
+curl -i https://pudnats.example.com/api/health
 ```
 
 ### 12) Common troubleshooting
 - Service won’t start:
-  - `sudo journalctl -u team-dev-log -n 200 --no-pager`
+  - `sudo journalctl -u pudnats -n 200 --no-pager`
 - Caddy config issues:
   - `sudo caddy validate --config /etc/caddy/Caddyfile`
 - Database permission errors:
-  - Ensure `/var/lib/team-dev-log` is writable by `devlog`.
+  - Ensure `/var/lib/pudnats` is writable by `pudnats`.
 
 ## Zig Cross-Compile (CGO SQLite)
 Because `go-sqlite3` uses CGO, use Zig as C toolchain.
@@ -462,7 +482,7 @@ Linux amd64:
 CC="zig cc -target x86_64-linux-musl" \
 CXX="zig c++ -target x86_64-linux-musl" \
 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-go build -ldflags "-s -w" -o devlog-linux-amd64 .
+go build -ldflags "-s -w" -o pudnats-linux-amd64 .
 ```
 
 Linux arm64:
@@ -470,7 +490,7 @@ Linux arm64:
 CC="zig cc -target aarch64-linux-musl" \
 CXX="zig c++ -target aarch64-linux-musl" \
 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
-go build -ldflags "-s -w" -o devlog-linux-arm64 .
+go build -ldflags "-s -w" -o pudnats-linux-arm64 .
 ```
 
 ## Security Notes

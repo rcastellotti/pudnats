@@ -39,10 +39,10 @@
   function getToken() {
     const fromQuery = getParam('token').toUpperCase();
     if (fromQuery) {
-      localStorage.setItem('devlog_token', fromQuery);
+      localStorage.setItem('pudnats_token', fromQuery);
       return fromQuery;
     }
-    return (localStorage.getItem('devlog_token') || '').trim().toUpperCase();
+    return (localStorage.getItem('pudnats_token') || '').trim().toUpperCase();
   }
 
   function headers() {

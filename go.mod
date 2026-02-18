@@ -1,4 +1,4 @@
-module team-dev-log
+module pudnats
 
 go 1.22
 

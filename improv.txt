@@ -1,4 +1,4 @@
-Team Dev Log Improvement List
+Pudnats Improvement List
 
 1) Security and auth hardening
 - Add token expiration / rotation policies and revoke support (admin subcommands).

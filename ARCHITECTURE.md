@@ -1,7 +1,7 @@
 # Architecture
 
 ## Overview
-Team Dev Log is a single Go binary that serves:
+Pudnats is a single Go binary that serves:
 - API server on `:9173`
 - Web UI server on `:9172`
 
@@ -104,7 +104,7 @@ Compaction for a day runs once:
 
 ## Deployment Model
 - Single binary process managed by `systemd`.
-- SQLite DB on local disk (for example `/var/lib/team-dev-log/devlog.db`).
+- SQLite DB on local disk (for example `/var/lib/pudnats/pudnats.db`).
 - Caddy as public edge for TLS termination and reverse proxy.
 
 ## Tradeoffs

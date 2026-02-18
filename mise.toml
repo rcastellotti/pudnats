@@ -2,7 +2,7 @@
 go = "latest"
 
 [tasks.build]
-description = "Build the dev log binary"
+description = "Build the pudnats binary"
 run = "go build ."
 
 [tasks.lint]
@@ -12,3 +12,7 @@ run = "go vet ./..."
 [tasks.test]
 description = "Run test suite"
 run = "go test ./..."
+
+[tasks.up]
+description = "Start pudnats server locally"
+run = "go run . serve --db ./pudnats.db --log -"

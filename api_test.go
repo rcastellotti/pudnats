@@ -191,3 +191,43 @@ func TestAPIListEntriesInvalidDay(t *testing.T) {
 	}
 }
 
+func TestAPICORSPreflightDefaultOrigin(t *testing.T) {
+	app := newTestApp(t)
+	h := newTestMux(app)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/entries", nil)
+	req.Header.Set("Origin", "http://localhost:9172")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type, Authorization")
+
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+	if rr.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("expected wildcard allow-origin, got %q", rr.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func TestAPICORSPreflightCustomOrigin(t *testing.T) {
+	app := newTestApp(t)
+	app.corsOrigin = "https://pudnats.example.com"
+	h := newTestMux(app)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/entries", nil)
+	req.Header.Set("Origin", "https://pudnats.example.com")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type, Authorization")
+
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+	if rr.Header().Get("Access-Control-Allow-Origin") != "https://pudnats.example.com" {
+		t.Fatalf("expected custom allow-origin, got %q", rr.Header().Get("Access-Control-Allow-Origin"))
+	}
+}

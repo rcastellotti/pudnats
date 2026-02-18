@@ -24,13 +24,14 @@ import (
 )
 
 const (
-	defaultDBPath  = "./devlog.db"
+	defaultDBPath  = "./pudnats.db"
 	defaultLogPath = "-"
 )
 
 type App struct {
 	db          *sql.DB
 	logger      *log.Logger
+	corsOrigin  string
 	writeLocked atomic.Bool
 	compactMu   sync.Mutex
 }
@@ -79,8 +80,11 @@ func runServe(args []string) error {
 		fmt.Fprintln(fs.Output(), "Options:")
 		fs.PrintDefaults()
 	}
-	dbPath := fs.String("db", defaultDBPath, "sqlite db path")
-	logPath := fs.String("log", defaultLogPath, "log target path ('-' for stdout only)")
+	dbPath := fs.String("db", envOrDefault("PUDNATS_DB_PATH", defaultDBPath), "sqlite db path")
+	logPath := fs.String("log", envOrDefault("PUDNATS_LOG", defaultLogPath), "log target path ('-' for stdout only)")
+	apiAddr := fs.String("api-addr", envOrDefault("PUDNATS_API_ADDR", ":9173"), "api listen address")
+	uiAddr := fs.String("ui-addr", envOrDefault("PUDNATS_UI_ADDR", ":9172"), "ui listen address")
+	corsOrigin := fs.String("cors-origin", envOrDefault("PUDNATS_CORS_ORIGIN", "*"), "CORS allow origin")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -100,7 +104,7 @@ func runServe(args []string) error {
 	}
 	defer db.Close()
 
-	app := &App{db: db, logger: logger}
+	app := &App{db: db, logger: logger, corsOrigin: strings.TrimSpace(*corsOrigin)}
 	if err := app.initSchema(); err != nil {
 		return err
 	}
@@ -120,16 +124,16 @@ func runServe(args []string) error {
 	uiMux.HandleFunc("/assets/oat.min.css", app.handleOatCSS)
 	uiMux.HandleFunc("/assets/oat.min.js", app.handleOatJS)
 
-	apiServer := &http.Server{Addr: ":9173", Handler: app.withCORS(apiMux)}
-	uiServer := &http.Server{Addr: ":9172", Handler: uiMux}
+	apiServer := &http.Server{Addr: *apiAddr, Handler: app.withCORS(apiMux)}
+	uiServer := &http.Server{Addr: *uiAddr, Handler: uiMux}
 
 	errCh := make(chan error, 2)
 	go func() {
-		app.logger.Printf("event=server_start kind=api port=9173")
+		app.logger.Printf("event=server_start kind=api addr=%s", *apiAddr)
 		errCh <- apiServer.ListenAndServe()
 	}()
 	go func() {
-		app.logger.Printf("event=server_start kind=ui port=9172")
+		app.logger.Printf("event=server_start kind=ui addr=%s", *uiAddr)
 		errCh <- uiServer.ListenAndServe()
 	}()
 
@@ -390,4 +394,12 @@ func hashToken(token string) string {
 
 func nowUTC() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func envOrDefault(key, fallback string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	return v
 }

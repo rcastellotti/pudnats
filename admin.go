@@ -38,8 +38,8 @@ func runAdmin(args []string) error {
 		fs.PrintDefaults()
 	}
 	username := fs.String("username", "", "username to create")
-	dbPath := fs.String("db", defaultDBPath, "sqlite db path")
-	logPath := fs.String("log", defaultLogPath, "log target path ('-' for stdout only)")
+	dbPath := fs.String("db", envOrDefault("PUDNATS_DB_PATH", defaultDBPath), "sqlite db path")
+	logPath := fs.String("log", envOrDefault("PUDNATS_LOG", defaultLogPath), "log target path ('-' for stdout only)")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
