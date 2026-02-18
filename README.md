@@ -1,5 +1,9 @@
 # Team Dev Log (Go + SQLite, no ORM)
 
+> [!WARNING]
+> This project is **vibecoded** and currently requires a significant refactor.
+> Do **not** use it for production or security-sensitive workloads.
+
 Single-binary Go application for team development logs.
 
 ## Workflow Change
