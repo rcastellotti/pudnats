@@ -491,3 +491,7 @@ go build -ldflags "-s -w" -o devlog-linux-arm64 .
 - add email and chat notifications for daily compaction summary
 - add OpenAPI spec + generated API client examples
 - add optional SSO/OIDC authentication mode
+
+## Product Expansion Notes
+- Multi-tenant SaaS and monetization exploration:
+  - `docs/PUDDLE_SAAS_PLAN.md`
