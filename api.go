@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const maxEntryBodyBytes = 64 * 1024
+
 func (a *App) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -79,10 +81,16 @@ func (a *App) handleCreateEntry(w http.ResponseWriter, r *http.Request, u Authed
 		jsonErr(w, http.StatusLocked, "writes are temporarily locked for daily compaction")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxEntryBodyBytes)
 	var req struct {
 		Content string `json:"content"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			jsonErr(w, http.StatusBadRequest, "content too large")
+			return
+		}
 		jsonErr(w, http.StatusBadRequest, "invalid json")
 		return
 	}
@@ -147,6 +155,10 @@ LIMIT ?`, day, limit)
 			return
 		}
 		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		jsonErr(w, http.StatusInternalServerError, "failed to parse entries")
+		return
 	}
 	_ = a.logAction("api_user", u.Username, "list_entries", fmt.Sprintf("day=%s limit=%d", day, limit))
 	jsonOut(w, http.StatusOK, map[string]any{"entries": entries, "day": day})
