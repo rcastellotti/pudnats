@@ -191,3 +191,56 @@ func TestAPIListEntriesInvalidDay(t *testing.T) {
 	}
 }
 
+func TestAPICreateEntryBodyTooLarge(t *testing.T) {
+	app := newTestApp(t)
+	h := newTestMux(app)
+	token := "PUDMAXBYTES1"
+	createUser(t, app, "max", token)
+
+	content := bytes.Repeat([]byte("a"), maxEntryBodyBytes)
+	body := append([]byte(`{"content":"`), content...)
+	body = append(body, []byte(`"}`)...)
+	req := httptest.NewRequest(http.MethodPost, "/api/entries", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	var got map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if got["error"] != "content too large" {
+		t.Fatalf("expected content too large, got %q", got["error"])
+	}
+}
+
+func TestAPICORSPreflight(t *testing.T) {
+	app := newTestApp(t)
+	h := newTestMux(app)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/entries", nil)
+	req.Header.Set("Origin", "http://localhost:9172")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type, Authorization")
+
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+	if rr.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("expected wildcard allow-origin, got %q", rr.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if rr.Header().Get("Access-Control-Allow-Headers") == "" {
+		t.Fatal("expected Access-Control-Allow-Headers to be set")
+	}
+	if rr.Header().Get("Access-Control-Allow-Methods") == "" {
+		t.Fatal("expected Access-Control-Allow-Methods to be set")
+	}
+}
